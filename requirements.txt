@@ -1,8 +1,8 @@
 torch
 transformers
 scikit-learn
-numpy
 pandas
-matplotlib
+numpy
+tqdm
 sentence-transformers
-huggingface_hub
+matplotlib
