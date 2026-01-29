@@ -1,0 +1,4 @@
+model_id,model_name,agree,rag_k,accuracy,macro_f1,latency_ms_per_sample
+ProsusAI/finbert,FinBERT,75,3,0.07959479015918958,0.07832068029940283,698.8126211349447
+distilbert-base-uncased-finetuned-sst-2-english,DistilBERT-SST2,75,3,0.21128798842257598,0.16098992430088258,344.18879015435397
+cardiffnlp/twitter-roberta-base-sentiment-latest,RoBERTa-Twitter,75,3,0.7062228654124457,0.5651441955789782,689.8128018759458
