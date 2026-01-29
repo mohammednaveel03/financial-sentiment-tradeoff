@@ -1,99 +1,139 @@
+import os
 import re
 import zipfile
+import urllib.request
 from typing import Tuple
 
 import pandas as pd
-from huggingface_hub import list_repo_files, hf_hub_download
-from sklearn.model_selection import train_test_split
-
-LABEL2ID = {"negative": 0, "neutral": 1, "positive": 2}
-ID2LABEL = {v: k for k, v in LABEL2ID.items()}
 
 
-def _parse_phrasebank_lines(lines):
-    sentences = []
+DATA_DIR = os.path.join("data")
+ZIP_PATH = os.path.join(DATA_DIR, "FinancialPhraseBank-v1.0.zip")
+EXTRACT_DIR = os.path.join(DATA_DIR, "FinancialPhraseBank-v1.0")
+
+# Stable public mirror on GitHub (zip is inside the repo)
+ZIP_URL = "https://github.com/neoyipeng2018/FinancialPhraseBank-v1.0/raw/main/FinancialPhraseBank-v1.0.zip"
+
+
+def _ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+
+def download_phrasebank(force: bool = False) -> str:
+    """
+    Downloads and extracts FinancialPhraseBank into ./data/.
+    Returns extract directory.
+    """
+    _ensure_dir(DATA_DIR)
+
+    if force and os.path.exists(ZIP_PATH):
+        os.remove(ZIP_PATH)
+
+    if not os.path.exists(ZIP_PATH):
+        print(f"Downloading dataset zip to: {ZIP_PATH}")
+        urllib.request.urlretrieve(ZIP_URL, ZIP_PATH)
+
+    if force and os.path.exists(EXTRACT_DIR):
+        # remove extracted files
+        for root, dirs, files in os.walk(EXTRACT_DIR, topdown=False):
+            for f in files:
+                os.remove(os.path.join(root, f))
+            for d in dirs:
+                os.rmdir(os.path.join(root, d))
+        os.rmdir(EXTRACT_DIR)
+
+    if not os.path.exists(EXTRACT_DIR):
+        _ensure_dir(EXTRACT_DIR)
+        print(f"Extracting zip into: {EXTRACT_DIR}")
+        with zipfile.ZipFile(ZIP_PATH, "r") as z:
+            z.extractall(EXTRACT_DIR)
+
+    return EXTRACT_DIR
+
+
+def _find_sentences_file(extract_dir: str, agree: str = "75") -> str:
+    """
+    Finds Sentences_75Agree.txt (or other agree level) anywhere under extract_dir.
+    """
+    target = f"sentences_{agree}agree.txt".lower()
+
+    candidates = []
+    for root, _, files in os.walk(extract_dir):
+        for f in files:
+            if f.lower() == target:
+                return os.path.join(root, f)
+            # keep fallback candidates
+            if f.lower().startswith("sentences_") and f.lower().endswith("agree.txt"):
+                candidates.append(os.path.join(root, f))
+
+    if candidates:
+        # If exact agree not found, pick first and warn
+        print("WARNING: Exact agree file not found. Using:", candidates[0])
+        return candidates[0]
+
+    raise FileNotFoundError(f"Could not find any Sentences_*Agree.txt inside {extract_dir}")
+
+
+def load_phrasebank_df(agree: str = "75") -> pd.DataFrame:
+    """
+    Returns DataFrame with columns: text, label (0=neg,1=neu,2=pos)
+    """
+    extract_dir = download_phrasebank(force=False)
+    path = _find_sentences_file(extract_dir, agree=agree)
+
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        lines = [ln.strip() for ln in f.readlines() if ln.strip()]
+
+    # Robust parse: try split by '@' first, else by tab
+    texts = []
     labels = []
 
-    for line in lines:
-        line = line.strip()
-        if not line:
+    label_map = {"negative": 0, "neutral": 1, "positive": 2}
+
+    for ln in lines:
+        if "@" in ln:
+            parts = ln.rsplit("@", 1)
+        else:
+            parts = re.split(r"\t+", ln)
+            if len(parts) > 2:
+                parts = [parts[0], parts[-1]]
+
+        if len(parts) != 2:
             continue
 
-        # Handle label @ sentence
-        if "@" in line:
-            label, sentence = line.split("@", 1)
-        # Handle tab separated
-        elif "\t" in line:
-            label, sentence = line.split("\t", 1)
-        # Handle space-separated (fallback)
-        else:
-            parts = line.split(" ", 1)
-            if len(parts) != 2:
-                continue
-            label, sentence = parts
+        text = parts[0].strip()
+        lab = parts[1].strip().lower()
 
-        label = label.strip().lower()
-        sentence = sentence.strip()
+        if lab not in label_map:
+            continue
 
-        if label in LABEL2ID and len(sentence) > 5:
-            labels.append(LABEL2ID[label])
-            sentences.append(sentence)
+        texts.append(text)
+        labels.append(label_map[lab])
 
-    df = pd.DataFrame({"sentence": sentences, "label": labels})
-
+    df = pd.DataFrame({"text": texts, "label": labels})
     if len(df) == 0:
         raise RuntimeError(
-            "Parsed dataset is EMPTY. PhraseBank format may have changed."
+            f"Parsed dataset is EMPTY. File format may have changed. "
+            f"Open {path} and check how labels are stored."
         )
 
     return df
 
 
-def load_phrasebank_75agree(seed: int = 42) -> pd.DataFrame:
-    """
-    Robust loader:
-    - looks inside takala/financial_phrasebank dataset repo
-    - downloads either a ZIP containing PhraseBank or a 75Agree txt directly
-    - parses into sentence/label DataFrame
-    """
-    repo_id = "takala/financial_phrasebank"
-    files = list_repo_files(repo_id=repo_id, repo_type="dataset")
+def train_val_test_split(
+    df: pd.DataFrame, seed: int = 42, test_size: float = 0.2, val_size: float = 0.1
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    from sklearn.model_selection import train_test_split
 
-    # 1) try to find a .zip (most robust)
-    zip_candidates = [f for f in files if f.lower().endswith(".zip")]
-    if zip_candidates:
-        zip_file = zip_candidates[0]
-        zip_path = hf_hub_download(repo_id=repo_id, filename=zip_file, repo_type="dataset")
-        with zipfile.ZipFile(zip_path, "r") as z:
-            names = z.namelist()
-            # look for 75Agree txt inside zip
-            candidates = [n for n in names if re.search(r"75.*agree", n, re.IGNORECASE) and n.lower().endswith(".txt")]
-            if not candidates:
-                raise RuntimeError(f"ZIP found but no 75Agree txt inside. Example files: {names[:30]}")
-            target = candidates[0]
-            raw = z.read(target)
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                text = raw.decode("latin-1")
-            lines = text.splitlines()
-        df = _parse_phrasebank_lines(lines)
-        return df.sample(frac=1, random_state=seed).reset_index(drop=True)
+    train_df, test_df = train_test_split(
+        df, test_size=test_size, random_state=seed, stratify=df["label"]
+    )
 
-    # 2) fallback: search for any txt that looks like 75Agree
-    txt_candidates = [f for f in files if f.lower().endswith(".txt") and re.search(r"75.*agree", f, re.IGNORECASE)]
-    if not txt_candidates:
-        raise RuntimeError(f"Could not locate PhraseBank 75Agree. Files include: {files[:50]}")
+    # val_size is fraction of the ORIGINAL dataset; convert to fraction of train_df
+    val_fraction_of_train = val_size / (1.0 - test_size)
 
-    txt_path = hf_hub_download(repo_id=repo_id, filename=txt_candidates[0], repo_type="dataset")
-    with open(txt_path, "r", encoding="utf-8", errors="ignore") as f:
-        lines = f.readlines()
+    train_df, val_df = train_test_split(
+        train_df, test_size=val_fraction_of_train, random_state=seed, stratify=train_df["label"]
+    )
 
-    df = _parse_phrasebank_lines(lines)
-    return df.sample(frac=1, random_state=seed).reset_index(drop=True)
-
-
-def split_df(df: pd.DataFrame, seed: int = 42) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    train_df, temp_df = train_test_split(df, test_size=0.2, random_state=seed, stratify=df["label"])
-    val_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=seed, stratify=temp_df["label"])
     return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
