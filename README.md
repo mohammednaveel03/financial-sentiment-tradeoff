@@ -102,46 +102,41 @@ Open a new Google Colab notebook and run the following commands **in separate ce
 
 ## Outputs
 
-After execution, the following files are generated in the outputs/ directory:
+After execution, the following files are generated in the `outputs/` directory:
 
-results.csv
-Accuracy, Macro-F1 score, and inference latency for each model.
+- **results.csv**  
+  Accuracy, Macro-F1 score, and inference latency for each model.
 
-performance_bar.png
-Visual comparison of Accuracy and Macro-F1.
+- **performance_bar.png**  
+  Visual comparison of Accuracy and Macro-F1.
 
-latency_bar.png
-Inference latency comparison (milliseconds per sample).
+- **latency_bar.png**  
+  Inference latency comparison (milliseconds per sample).
 
-tradeoff_scatter.png
-Accuracy–latency trade-off visualization.
+- **tradeoff_scatter.png**  
+  Accuracy–latency trade-off visualization.
 
 ---
 
 ## Key Observations
 
-Lightweight models (DistilBERT) achieve lower inference latency but reduced accuracy.
-
-Larger models (RoBERTa) achieve higher accuracy at the cost of increased latency.
-
-Domain-specific models (FinBERT) are not always optimal for short financial phrases.
-
-Retrieval-augmented context affects both performance and inference cost, highlighting real deployment trade-offs.
+- Lightweight models (**DistilBERT**) achieve lower inference latency but reduced accuracy.
+- Larger models (**RoBERTa**) achieve higher accuracy at the cost of increased latency.
+- Domain-specific models (**FinBERT**) are not always optimal for short financial phrases.
+- Retrieval-augmented context affects both performance and inference cost, highlighting real deployment trade-offs.
 
 ---
 
 ## Reproducibility
 
-All experiments are deterministic given the same environment.
-
-No external dataset scripts are required.
-
-The entire pipeline can be executed end-to-end using the instructions above.
+- All experiments are deterministic given the same environment.
+- No external dataset scripts are required.
+- The entire pipeline can be executed end-to-end using the instructions above.
 
 ---
 
 ## Author
 
-Mohammed Naveel
-Master’s Student – Artificial Intelligence
+**Mohammed Naveel**  
+Master’s Student – Artificial Intelligence  
 Bahçeşehir University
