@@ -11,30 +11,41 @@ ID2LABEL = {v: k for k, v in LABEL2ID.items()}
 
 
 def _parse_phrasebank_lines(lines):
-    sents, labels = [], []
+    sentences = []
+    labels = []
+
     for line in lines:
         line = line.strip()
         if not line:
             continue
 
-        # Many PhraseBank files are: label@sentence
+        # Handle label @ sentence
         if "@" in line:
-            a, b = line.split("@", 1)
-            label = a.strip().lower()
-            sent = b.strip()
-        # Some variants are tab separated: label \t sentence
+            label, sentence = line.split("@", 1)
+        # Handle tab separated
         elif "\t" in line:
-            a, b = line.split("\t", 1)
-            label = a.strip().lower()
-            sent = b.strip()
+            label, sentence = line.split("\t", 1)
+        # Handle space-separated (fallback)
         else:
-            continue
+            parts = line.split(" ", 1)
+            if len(parts) != 2:
+                continue
+            label, sentence = parts
 
-        if label in LABEL2ID:
+        label = label.strip().lower()
+        sentence = sentence.strip()
+
+        if label in LABEL2ID and len(sentence) > 5:
             labels.append(LABEL2ID[label])
-            sents.append(sent)
+            sentences.append(sentence)
 
-    df = pd.DataFrame({"sentence": sents, "label": labels})
+    df = pd.DataFrame({"sentence": sentences, "label": labels})
+
+    if len(df) == 0:
+        raise RuntimeError(
+            "Parsed dataset is EMPTY. PhraseBank format may have changed."
+        )
+
     return df
 
 
