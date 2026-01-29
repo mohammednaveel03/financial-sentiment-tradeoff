@@ -38,27 +38,6 @@ No manual dataset setup is required.
 
 ---
 
-## Repository Structure
-
-financial-sentiment-tradeoff/
-│
-├── src/
-│   ├── run.py        # Main experiment runner
-│   ├── data.py       # Dataset download, parsing, and splitting
-│   ├── utils.py      # Helper utilities
-│   └── rag_knn.py    # Retrieval-augmented (RAG-style) logic
-│
-├── outputs/
-│   ├── results.csv              # Quantitative experiment results
-│   ├── performance_bar.png      # Accuracy & Macro-F1 comparison
-│   ├── latency_bar.png          # Latency comparison
-│   └── tradeoff_scatter.png     # Accuracy–Latency trade-off visualization
-│
-├── requirements.txt
-└── README.md
-
-
----
 
 ## How to Run (Google Colab – Recommended)
 
